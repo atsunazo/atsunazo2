@@ -2,227 +2,271 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日本語クイズアプリ</title>
-    <script src="https://unpkg.com/react@17/umd/react.development.js&quot;&gt;&lt;/script>
-    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js&quot;&gt;&lt;/script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js&quot;&gt;&lt;/script>
-    <script src="https://cdn.tailwindcss.com&quot;&gt;&lt;/script>
-</head>
-<body>
-    <div id="root"></div>
-    <script type="text/babel">
-        function MainComponent() {
-            const [answer, setAnswer] = React.useState("");
-            const [currentQuestionId, setCurrentQuestionId] = React.useState(1);
-            const [question, setQuestion] = React.useState(null);
-            const [error, setError] = React.useState("");
-            const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-            const hiraganaGrid = [
-                ["あ", "い", "う", "え", "お"],
-                ["か", "き", "く", "け", "こ"],
-                ["さ", "し", "す", "せ", "そ"],
-                ["た", "ち", "つ", "て", "と"],
-                ["な", "に", "ぬ", "ね", "の"],
-                ["は", "ひ", "ふ", "へ", "ほ"],
-                ["ま", "み", "む", "め", "も"],
-                ["や", "", "ゆ", "", "よ"],
-                ["ら", "り", "る", "れ", "ろ"],
-                ["わ", "", "", "", "を"],
-                ["ん", "゛", "゜", "小", "×"]
-            ];
-
-            const dakutenMap = {
-                か: "が", き: "ぎ", く: "ぐ", け: "げ", こ: "ご",
-                さ: "ざ", し: "じ", す: "ず", せ: "ぜ", そ: "ぞ",
-                た: "だ", ち: "ぢ", つ: "づ", て: "で", と: "ど",
-                は: "ば", ひ: "び", ふ: "ぶ", へ: "べ", ほ: "ぼ",
-                が: "か", ぎ: "き", ぐ: "く", げ: "け", ご: "こ",
-                ざ: "さ", じ: "し", ず: "す", ぜ: "せ", ぞ: "そ",
-                だ: "た", ぢ: "ち", づ: "つ", で: "て", ど: "と",
-                ば: "は", び: "ひ", ぶ: "ふ", べ: "へ", ぼ: "ほ",
-                ぱ: "ば", ぴ: "び", ぷ: "ぶ", ぺ: "べ", ぽ: "ぼ"
-            };
-
-            const handakutenMap = {
-                は: "ぱ", ひ: "ぴ", ふ: "ぷ", へ: "ぺ", ほ: "ぽ",
-                ば: "ぱ", び: "ぴ", ぶ: "ぷ", べ: "ぺ", ぼ: "ぽ",
-                ぱ: "ば", ぴ: "び", ぷ: "ぶ", ぺ: "べ", ぽ: "ぼ"
-            };
-
-            const smallMap = {
-                つ: "っ", や: "ゃ", ゆ: "ゅ", よ: "ょ",
-                あ: "ぁ", い: "ぃ", う: "ぅ", え: "ぇ", お: "ぉ",
-                っ: "つ", ゃ: "や", ゅ: "ゆ", ょ: "よ",
-                ぁ: "あ", ぃ: "い", ぅ: "う", ぇ: "え", ぉ: "お"
-            };
-
-            React.useEffect(() => {
-                fetch("/api/question-handler", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        method: "GET",
-                        query: { id: currentQuestionId },
-                        userId: 123,
-                    }),
-                })
-                .then(res => res.json())
-                .then(data => {
-                    setQuestion(data.question);
-                    if (data.question?.previous_correct_answer) {
-                        setAnswer(data.question.previous_correct_answer);
-                    } else {
-                        setAnswer("");
-                    }
-                    setError("");
-                })
-                .catch(() => setError("問題の取得に失敗しました"));
-            }, [currentQuestionId]);
-
-            const handleCharacterClick = (char) => {
-                if (question?.previous_correct_answer) return;
-
-                if (char === "×") {
-                    setAnswer(prev => prev.slice(0, -1));
-                    return;
-                }
-
-                if (char === "゛" || char === "゜" || char === "小") {
-                    const lastChar = answer.slice(-1);
-                    if (char === "゛" && dakutenMap[lastChar]) {
-                        setAnswer(prev => prev.slice(0, -1) + dakutenMap[lastChar]);
-                    } else if (char === "゜" && handakutenMap[lastChar]) {
-                        setAnswer(prev => prev.slice(0, -1) + handakutenMap[lastChar]);
-                    } else if (char === "小" && smallMap[lastChar]) {
-                        setAnswer(prev => prev.slice(0, -1) + smallMap[lastChar]);
-                    }
-                    return;
-                }
-
-                if (char !== "") {
-                    setAnswer(prev => prev + char);
-                }
-            };
-
-            const handleSubmit = async () => {
-                if (isSubmitting) return;
-                
-                if (question?.previous_correct_answer) {
-                    setCurrentQuestionId(currentQuestionId + 1);
-                    return;
-                }
-
-                setIsSubmitting(true);
-                const currentAnswer = answer;
-                setAnswer("");
-
-                try {
-                    const response = await fetch("/api/question-handler", {
-                        method: "POST",
-                        body: JSON.stringify({
-                            method: "POST",
-                            answer: currentAnswer,
-                            questionId: currentQuestionId,
-                            userId: 123,
-                        }),
-                    });
-
-                    const data = await response.json();
-
-                    if (data.isCorrect) {
-                        setCurrentQuestionId(data.nextQuestionId);
-                        setError("");
-                    } else {
-                        setAnswer(currentAnswer);
-                        setError("不正解です");
-                    }
-                } catch (err) {
-                    console.error(err);
-                    setAnswer(currentAnswer);
-                    setError("エラーが発生しました");
-                } finally {
-                    setIsSubmitting(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-white dark:bg-gray-900 p-4 flex flex-col items-center">
-                    <div className="w-full max-w-[390px]">
-                        <div className="w-full mb-6 flex items-center justify-center">
-                            {question?.question_image ? (
-                                <img
-                                    src={question.question_image}
-                                    alt="問題画像"
-                                    className="w-full object-contain"
-                                    loading="eager"
-                                />
-                            ) : (
-                                <span className="text-gray-500 dark:text-gray-400 font-inter">
-                                    問題画像がここに表示されます
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="mb-2 flex gap-2">
-                            <input
-                                type="text"
-                                value={answer}
-                                onChange={(e) => !question?.previous_correct_answer && setAnswer(e.target.value)}
-                                className={w-1/2 p-2 border rounded-lg font-inter ${<br>                                    question?.previous_correct_answer || isSubmitting<br>                                        ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed"<br>                                        : "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white bg-white dark:bg-gray-800"<br>                                }}
-                                placeholder="解答を入力"
-                                readOnly={!!question?.previous_correct_answer || isSubmitting}
-                            />
-                            <div className="flex gap-2 w-1/2">
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting}
-                                    className={flex-1 px-2 py-2 rounded-lg font-inter transition-colors ${<br>                                        isSubmitting<br>                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"<br>                                            : question?.previous_correct_answer<br>                                            ? "bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-400 dark:border-green-800"<br>                                            : "bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800"<br>                                    }}
-                                >
-                                    {question?.previous_correct_answer ? "次へ" : isSubmitting ? "送信中..." : "送信"}
-                                </button>
-                                <button
-                                    onClick={() => currentQuestionId > 1 && setCurrentQuestionId(prev => prev - 1)}
-                                    disabled={isSubmitting || currentQuestionId <= 1}
-                                    className={flex-1 px-2 py-2 rounded-lg font-inter transition-colors ${<br>                                        isSubmitting || currentQuestionId <= 1<br>                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"<br>                                            : "bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-400 dark:border-gray-700"<br>                                    }}
-                                >
-                                    戻る
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="h-4 mt-1 mb-1 flex items-center justify-center">
-                            <div className={text-sm w-full text-center transition-opacity text-red-600 dark:text-red-400 ${error ? 'opacity-100' : 'opacity-0'}}>
-                                {error || '　'}
-                            </div>
-                        </div>
-
-                        <div className="w-full flex justify-center">
-                            <div className="w-full flex justify-end">
-                                <div className="flex flex-row-reverse gap-[3px]" style={{ width: 'calc(100% - 1px)' }}>
-                                    {hiraganaGrid.map((row, rowIndex) => (
-                                        <div key={rowIndex} className="flex flex-col gap-[3px] flex-1">
-                                            {row.map((char) => (
-                                                <button
-                                                    key={char}
-                                                    onClick={() => handleCharacterClick(char)}
-                                                    disabled={!!question?.previous_correct_answer || isSubmitting}
-                                                    className={w-full aspect-square text-sm rounded-md border font-inter ${<br>                                                        char === ""<br>                                                            ? "invisible"<br>                                                            : (question?.previous_correct_answer || isSubmitting)<br>                                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600 border-gray-200 dark:border-gray-700"<br>                                                            : char === "×"<br>                                                            ? "bg-red-50 hover:bg-red-100 text-red-600 border-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-400 dark:border-red-800"<br>                                                            : ["゛", "゜", "小"].includes(char)<br>                                                            ? "bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800"<br>                                                            : "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"<br>                                                    }}
-                                                >
-                                                    {char}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <title>謎解きタイムアタック</title>
+    <style>
+        input[type="text"], textarea {
+           font-size: 16px;
         }
 
-        ReactDOM.render(<MainComponent />, document.getElementById('root'));
+        body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        #quiz-container {
+            background-color: white;
+            max-width: 90%;
+            width: 320px;
+            margin: 0 auto;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        #question-image {
+            width: 280px;
+            height: 197px;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"], textarea {
+            width: 80%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        #result-message {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .rank {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="quiz-container">
+        <h1>謎解きタイムアタック</h1>
+        <div id="start-screen">
+            <input type="text" id="name-input" placeholder="名前を入力してください">
+            <button id="start-btn">開始</button>
+        </div>
+        <div id="quiz-screen" style="display: none;">
+            <div id="timer">経過時間: 00:00</div>
+            <div id="quiz-area">
+                <img id="question-image" src="" alt="問題画像">
+                <p id="question-text"></p>
+            </div>
+            <input type="text" id="answer-input" placeholder="回答を入力">
+            <button id="submit-btn">送信</button>
+            <button id="back-btn">戻る</button>
+            <p id="result-message"></p>
+        </div>
+        <div id="finish-screen" style="display: none;">
+            <p id="finish-result"></p>
+            <textarea id="comment-input" placeholder="コメントを入力してください" rows="4"></textarea>
+            <button id="submit-comment-btn">送信</button>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('resize', function() {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                window.setTimeout(function() {
+            document.activeElement.scrollIntoView();
+                }, 0);
+            }
+        });
+        const questions = [
+            { image: './quiz1.png', text: '問題1のテキスト', answer: 'a' },
+            { image: './quiz2.png', text: '問題2のテキスト', answer: 'b' },
+            { image: './quiz3.png', text: '問題3のテキスト', answer: 'c' },
+        ];
+
+        let currentQuestion = 0;
+        let startTime;
+        let timerInterval;
+        let answers = [];
+        let solvedQuestions = new Set();
+        let playerName = '';
+
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const finishScreen = document.getElementById('finish-screen');
+        const nameInput = document.getElementById('name-input');
+        const startBtn = document.getElementById('start-btn');
+        const quizArea = document.getElementById('quiz-area');
+        const questionImage = document.getElementById('question-image');
+        const questionText = document.getElementById('question-text');
+        const answerInput = document.getElementById('answer-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const backBtn = document.getElementById('back-btn');
+        const resultMessage = document.getElementById('result-message');
+        const timerDisplay = document.getElementById('timer');
+        const finishResult = document.getElementById('finish-result');
+        const commentInput = document.getElementById('comment-input');
+        const submitCommentBtn = document.getElementById('submit-comment-btn');
+
+        function saveRecord(name, time, rank) {
+            var gasUrl = "https://script.google.com/macros/s/AKfycbz6mVCgN0sI-EAVAcdHLbpWpe2MxF-HZCeziijRJCHV7vQW-QnvzCwuhxeDXkhCG1nrPw/exec";
+
+            fetch(gasUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                action: 'saveRecord',
+                name: name,
+                time: time,
+                rank: rank
+                })
+            })
+            .then(response => {
+                console.log('記録が保存されました:');
+            })
+            .catch(error => console.error('記録の保存に失敗しました:', error));
+        }
+
+        function displayLeaderboard() {
+            var gasUrl = "YOUR_GAS_URL";
+
+            fetch(gasUrl + "?action=getLeaderboard")
+                .then(response => response.json())
+                .then(data => {
+                    const leaderboardList = document.getElementById('leaderboard-list');
+                    leaderboardList.innerHTML = data.map((entry, index) => {
+                        return `<li>${entry.name} - ${entry.time} (${entry.rank})</li>`;
+                    }).join('');
+                })
+                .catch(error => console.error('ランキングの取得に失敗しました:', error));
+        }
+
+        window.addEventListener('load', displayLeaderboard);
+
+        startBtn.addEventListener('click', () => {
+            playerName = nameInput.value.trim();
+            if (playerName) {
+                startScreen.style.display = 'none';
+                quizScreen.style.display = 'block';
+                startQuiz();
+            } else {
+                alert('名前を入力してください。');
+            }
+        });
+
+        function startQuiz() {
+            startTime = new Date();
+            timerInterval = setInterval(updateTimer, 1000);
+            showQuestion(currentQuestion);
+        }
+
+        function showQuestion(index) {
+            const question = questions[index];
+            questionImage.src = question.image;
+            questionText.textContent = question.text;
+            
+            if (solvedQuestions.has(index)) {
+                answerInput.value = answers[index];
+                answerInput.disabled = true;
+                resultMessage.textContent = '正解済み';
+            } else {
+                answerInput.value = '';
+                answerInput.disabled = false;
+                resultMessage.textContent = '';
+            }
+        }
+
+        function updateTimer() {
+            const now = new Date();
+            const timeDiff = now - startTime;
+            const minutes = Math.floor(timeDiff / 60000);
+            const seconds = Math.floor((timeDiff % 60000) / 1000);
+            timerDisplay.textContent = `経過時間: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        submitBtn.addEventListener('click', () => {
+            const userAnswer = answerInput.value.trim();
+            if (userAnswer === questions[currentQuestion].answer) {
+                answers[currentQuestion] = userAnswer;
+                solvedQuestions.add(currentQuestion);
+                currentQuestion++;
+                if (currentQuestion < questions.length) {
+                    showQuestion(currentQuestion);
+                } else {
+                    finishQuiz();
+                }
+            } else {
+                resultMessage.textContent = '違います。もう一度試してください。';
+            }
+        });
+
+        backBtn.addEventListener('click', () => {
+            if (currentQuestion > 0) {
+                currentQuestion--;
+                showQuestion(currentQuestion);
+            }
+        });
+
+        function getRank(time) {
+            const [minutes, seconds] = time.split(':').map(Number);
+            const totalSeconds = minutes * 60 + seconds;
+            
+            if (totalSeconds <= 60) return 'S';
+            if (totalSeconds <= 150) return 'A';
+            if (totalSeconds <= 240) return 'B';
+            if (totalSeconds <= 420) return 'C';
+            return 'D';
+        }
+
+        function finishQuiz() {
+            clearInterval(timerInterval);
+            const finalTime = timerDisplay.textContent.split(': ')[1];
+            const rank = getRank(finalTime);
+            quizScreen.style.display = 'none';
+            finishScreen.style.display = 'block';
+            finishResult.innerHTML = `
+                <p>名前: ${playerName}</p>
+                <p>タイム: ${finalTime}</p>
+                <p class="rank">ランク: ${rank}</p>
+            `;
+            saveRecord(playerName, finalTime, rank);
+        }
+
+        submitCommentBtn.addEventListener('click', () => {
+            const comment = commentInput.value.trim();
+            if (comment) {
+                console.log('記録されたコメント:', comment);
+                resetQuiz();
+            } else {
+                alert('コメントを入力してください。');
+            }
+        });
+
+        function resetQuiz() {
+            currentQuestion = 0;
+            answers = [];
+            solvedQuestions.clear();
+            commentInput.value = '';
+            finishScreen.style.display = 'none';
+            startScreen.style.display = 'block';
+            displayLeaderboard();
+        }
     </script>
 </body>
 </html>
