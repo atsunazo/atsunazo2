@@ -41,7 +41,13 @@
             left:  0;
             right: 0;
             margin-top: 100px
-            
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 0;
+            margin-bottom: env(keyboard-inset-height, 0px); /* キーボード高さを考慮 */
+            transition: margin-bottom 0.3s ease;
         }
 
         #question-image {
